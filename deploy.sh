@@ -8,7 +8,8 @@ cd "$(dirname "$0")"
 
 # 2. Atualiza o código do GitHub
 echo "📥 Baixando atualizações do GitHub..."
-git pull origin main
+git fetch origin
+git reset --hard origin/main
 
 # 3. Reconstrói e reinicia os containers
 echo "🐳 Reiniciando containers Docker..."
