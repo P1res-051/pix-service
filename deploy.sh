@@ -19,4 +19,4 @@ docker-compose up -d --build
 docker image prune -f
 
 echo "✅ Serviço atualizado e rodando!"
-echo "📍 Teste em: http://$(curl -s ifconfig.me):8000/gerar-pix"
+echo "📍 Teste em: http://$(curl -4 -s ifconfig.me):8000/gerar-pix"
