@@ -248,24 +248,42 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                 await asyncio.sleep(2)
             
             if pix_code:
-                # Limpeza final do código Pix (remover sufixos indesejados se vier do HTML)
-                # O padrão BR Code sempre termina antes de tags HTML
-                pix_code = pix_code.split("<")[0].strip()
-                logger.info("Código Pix encontrado!")
+                # Limpeza final do código Pix
+                pix_code = pix_code.strip()
+                # Se houver sujeira HTML no final, corta
+                if "<" in pix_code:
+                    pix_code = pix_code.split("<")[0]
+                # Remove aspas extras que podem vir do JSON/String
+                pix_code = pix_code.replace('"', '').replace("'", "")
+                
+                logger.info(f"Código Pix encontrado: {pix_code[:20]}...")
                 return pix_code
             else:
                 logger.error("Pix não encontrado após tentativas.")
                 # Dump do HTML para debug no log
                 try:
                     content = await page.content()
-                    logger.info("--- DUMP DO CONTEÚDO DA PÁGINA ---")
-                    logger.info(content[:2000]) # Primeiros 2000 caracteres
+                    logger.info("--- DUMP DO CONTEÚDO DA PÁGINA (BODY) ---")
+                    body_text = await page.inner_text("body")
+                    logger.info(body_text[:5000]) # Loga os primeiros 5000 chars do texto visível
+                    
+                    # Loga iframes também
+                    for frame in page.frames:
+                        try:
+                            if frame.name:
+                                logger.info(f"--- FRAME: {frame.name} ---")
+                                logger.info((await frame.inner_text("body"))[:1000])
+                        except: pass
+                        
                     logger.info("...")
                 except:
                     pass
                 
                 # Tira screenshot para debug
-                await page.screenshot(path="debug_error.png")
+                try:
+                    await page.screenshot(path="debug_error.png")
+                except: pass
+                
                 return None
 
         except Exception as e:
