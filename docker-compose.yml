@@ -4,11 +4,15 @@ services:
   pix-service:
     build: .
     container_name: pix-service
-    restart: always
     ports:
       - "8000:8000"
+    restart: always
     environment:
       - PORT=8000
       - PYTHONUNBUFFERED=1
-    # Aumenta a memória compartilhada para evitar crashes do Chromium
-    shm_size: '2gb'
+    # Configurações de logging para não estourar o disco da VPS
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
