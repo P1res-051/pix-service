@@ -163,24 +163,28 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
             logger.info("Aguardando código Pix...")
             
             # Aumenta timeout e melhora a busca
-            for i in range(20):
+            for i in range(25): # Aumentado para 25 tentativas
                 # 0. Checa se já pegamos via Network
                 if pix_code_network:
                     pix_code = pix_code_network[0]
+                    logger.info("Pix recuperado via Network Interception!")
                     break
 
                 # 1. Busca em inputs/textareas (Value ou Text)
                 inputs = await page.locator("input, textarea").all()
                 for inp in inputs:
                     try:
-                        val = await inp.get_attribute("value")
-                        if val and "000201" in val:
-                            pix_code = val
-                            break
-                        txt = await inp.inner_text()
-                        if txt and "000201" in txt:
-                            pix_code = txt
-                            break
+                        if await inp.is_visible():
+                            val = await inp.get_attribute("value")
+                            if val and "000201" in val:
+                                pix_code = val
+                                logger.info("Pix encontrado em Input Value")
+                                break
+                            txt = await inp.inner_text()
+                            if txt and "000201" in txt:
+                                pix_code = txt
+                                logger.info("Pix encontrado em Input Text")
+                                break
                     except:
                         continue
                 
@@ -189,24 +193,23 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                 
                 # 2. Busca no clipboard (Click no botão de copiar)
                 try:
-                    # Botão de copiar comum no MP
-                    copy_btn = page.locator("span:has-text('Copiar código')").or_(
-                        page.locator("button:has-text('Copiar código')")
-                    ).or_(
-                        page.locator(".clipboard-copy")
-                    )
+                    # Botão de copiar comum no MP - expandido para outros seletores comuns
+                    copy_btns = await page.locator("button, span, div, a").filter(has_text=re.compile(r"Copiar|Copy", re.IGNORECASE)).all()
                     
-                    if await copy_btn.first.is_visible():
-                        await copy_btn.first.click()
-                        await asyncio.sleep(0.5)
-                        # Lê do clipboard
-                        clipboard_content = await page.evaluate("navigator.clipboard.readText()")
-                        if clipboard_content and "000201" in clipboard_content:
-                            pix_code = clipboard_content
-                            logger.info("Pix obtido via Clipboard!")
-                            break
+                    for btn in copy_btns:
+                        if await btn.is_visible():
+                            # Clica e lê
+                            await btn.click()
+                            await asyncio.sleep(0.5)
+                            clipboard_content = await page.evaluate("navigator.clipboard.readText()")
+                            if clipboard_content and "000201" in clipboard_content:
+                                pix_code = clipboard_content
+                                logger.info("Pix obtido via Clipboard (Botão Genérico)!")
+                                break
+                    if pix_code: break
+
                 except Exception as e:
-                    logger.warning(f"Erro ao tentar ler clipboard: {e}")
+                    pass
 
                 # 3. Busca no texto visível da página (inner_text é melhor que content) e em Iframes
                 try:
@@ -215,8 +218,8 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                     if "000201" in text_content:
                         match = re.search(r"(000201[a-zA-Z0-9\s\.\-\*@:]+)", text_content)
                         if match:
-                             candidate = match.group(1).replace(" ", "").replace("\n", "")
-                             if len(candidate) > 50:
+                            candidate = match.group(1).replace(" ", "").replace("\n", "")
+                            if len(candidate) > 50:
                                 pix_code = candidate
                                 logger.info("Pix encontrado no texto do body (main frame)!")
                                 break
@@ -241,7 +244,7 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                 except Exception as e:
                      logger.warning(f"Erro ao buscar texto no body: {e}")
                 
-                logger.info(f"Tentativa {i+1}/20 de encontrar Pix...")
+                logger.info(f"Tentativa {i+1}/25 de encontrar Pix...")
                 await asyncio.sleep(2)
             
             if pix_code:
