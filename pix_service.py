@@ -25,6 +25,29 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
         try:
             # Aumenta viewport para evitar que elementos fiquem escondidos
             await page.set_viewport_size({"width": 1280, "height": 1024})
+
+            # --- ESTRATÉGIA DE REDE: Interceptar resposta JSON com Pix ---
+            pix_code_network = []
+            
+            async def handle_response(response):
+                try:
+                    if response.request.method == "POST" and ("000201" in response.url or "json" in response.headers.get("content-type", "")):
+                        try:
+                            json_data = await response.json()
+                            dump = str(json_data)
+                            if "000201" in dump:
+                                match = re.search(r"(000201[a-zA-Z0-9\s\.\-\*@:]+)", dump)
+                                if match:
+                                    candidate = match.group(1).replace(" ", "").replace("\n", "")
+                                    if len(candidate) > 50:
+                                        pix_code_network.append(candidate)
+                                        logger.info("Pix capturado via Network Response!")
+                        except:
+                            pass
+                except:
+                    pass
+            
+            page.on("response", handle_response)
             
             logger.info(f"Acessando URL: {url_link}")
             # Timeout de navegação de 60s
@@ -141,6 +164,11 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
             
             # Aumenta timeout e melhora a busca
             for i in range(20):
+                # 0. Checa se já pegamos via Network
+                if pix_code_network:
+                    pix_code = pix_code_network[0]
+                    break
+
                 # 1. Busca em inputs/textareas (Value ou Text)
                 inputs = await page.locator("input, textarea").all()
                 for inp in inputs:
@@ -224,6 +252,15 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                 return pix_code
             else:
                 logger.error("Pix não encontrado após tentativas.")
+                # Dump do HTML para debug no log
+                try:
+                    content = await page.content()
+                    logger.info("--- DUMP DO CONTEÚDO DA PÁGINA ---")
+                    logger.info(content[:2000]) # Primeiros 2000 caracteres
+                    logger.info("...")
+                except:
+                    pass
+                
                 # Tira screenshot para debug
                 await page.screenshot(path="debug_error.png")
                 return None
