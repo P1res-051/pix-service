@@ -91,30 +91,59 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
             
             # Tenta preencher qualquer campo de email que aparecer, mesmo escondido
             try:
-                 # Injeta JS para achar o campo de email e preencher 'na força'
-                 email_filled = await page.evaluate(f"""
-                    (email) => {{
-                        const input = document.querySelector('input[type="email"]') || document.querySelector('#user-email-input');
-                        if (input) {{
-                            input.value = email;
-                            input.dispatchEvent(new Event('input', {{ bubbles: true }}));
-                            input.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            return true;
+                # Estratégia Híbrida: Click + Type (Humano) para disparar eventos corretamente
+                email_input = page.locator("input[type='email']").or_(
+                    page.locator("#user-email-input")
+                ).or_(
+                    page.locator("input[placeholder*='email']")
+                ).or_(
+                    page.locator("input[placeholder*='Ex.:']")
+                )
+                
+                if await email_input.count() > 0:
+                    # Foca e digita como um humano
+                    await email_input.first.click()
+                    await asyncio.sleep(0.5)
+                    await email_input.first.fill("") # Limpa
+                    await page.keyboard.type(email_cliente, delay=50) # Digita com delay
+                    await asyncio.sleep(0.5)
+                    await page.keyboard.press("Tab") # Sai do campo para validar
+                    logger.info("Email preenchido via Keyboard Type (Simulação Humana).")
+                    
+                    # Verificação de segurança: O erro sumiu?
+                    if await page.locator("text=Preencha este campo").is_visible():
+                         logger.warning("Validação de email falhou. Tentando forçar via JS...")
+                         # Fallback JS Force
+                         await page.evaluate(f"""
+                            (email) => {{
+                                const input = document.querySelector('input[type="email"]');
+                                if (input) {{
+                                    input.value = email;
+                                    input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                    input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                    input.dispatchEvent(new Event('blur', {{ bubbles: true }}));
+                                }}
+                            }}
+                         """, email_cliente)
+                else:
+                     # Se não achou locator, tenta JS Direto
+                     logger.info("Locator de email não encontrado, tentando JS direto...")
+                     email_filled = await page.evaluate(f"""
+                        (email) => {{
+                            const input = document.querySelector('input[type="email"]') || document.querySelector('#user-email-input');
+                            if (input) {{
+                                input.value = email;
+                                input.dispatchEvent(new Event('input', {{ bubbles: true }}));
+                                input.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                                return true;
+                            }}
+                            return false;
                         }}
-                        return false;
-                    }}
-                 """, email_cliente)
-                 
-                 if email_filled:
-                     logger.info(f"Email {email_cliente} preenchido via JS Direto.")
-                     await page.keyboard.press("Enter")
-                 else:
-                     # Tenta via Playwright normal
-                     email_input = page.locator("input[type='email']").or_(page.locator("#user-email-input"))
-                     if await email_input.count() > 0:
-                        await email_input.first.fill(email_cliente)
-                        await email_input.first.press("Enter")
-                        logger.info("Email preenchido via Locator.")
+                     """, email_cliente)
+                     
+                     if email_filled:
+                         logger.info(f"Email {email_cliente} preenchido via JS Direto.")
+                         await page.keyboard.press("Enter")
                      else:
                         logger.info("Campo de email não encontrado (pode ser opcional).")
             except Exception as e:
