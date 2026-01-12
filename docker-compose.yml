@@ -19,11 +19,11 @@ services:
       options:
         max-size: "10m"
         max-file: "3"
-    deploy:
-      resources:
-        limits:
-          memory: 1536M  # Limite de 1.5GB para não travar a VPS
-          cpus: '1.50'
+    # deploy:
+    #   resources:
+    #     limits:
+    #       memory: 1536M  # Comentado para evitar OOM Kills se a VPS tiver memória livre
+    #       cpus: '1.50'
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s

@@ -7,8 +7,10 @@ ENV PYTHONUNBUFFERED=1
 
 # Instala dependências do sistema necessárias para o Playwright
 # O Playwright precisa de algumas libs do sistema para rodar os browsers
+# CURL é necessário para o Healthcheck
 RUN apt-get update && apt-get install -y \
     wget \
+    curl \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
