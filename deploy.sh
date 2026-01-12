@@ -11,12 +11,25 @@ echo "📥 Baixando atualizações do GitHub..."
 git fetch origin
 git reset --hard origin/main
 
-# 3. Reconstrói e reinicia os containers
-echo "🐳 Reiniciando containers Docker..."
-docker-compose down
-docker-compose up -d --build
+# 3. Verifica qual Docker Compose usar (V2 é preferido)
+if docker compose version >/dev/null 2>&1; then
+    COMPOSE="docker compose"
+    echo "✅ Usando Docker Compose V2"
+else
+    COMPOSE="docker-compose"
+    echo "⚠️ Usando Docker Compose Legacy (V1)"
+fi
 
-# 4. Limpa imagens antigas para economizar espaço
+# 4. Limpeza forçada para evitar erros de "ContainerConfig"
+echo "🧹 Limpando containers antigos..."
+docker rm -f pix-service 2>/dev/null
+$COMPOSE down --remove-orphans
+
+# 5. Reconstrói e reinicia
+echo "🐳 Construindo e iniciando..."
+$COMPOSE up -d --build
+
+# 6. Limpa imagens não utilizadas
 docker image prune -f
 
 echo "✅ Serviço atualizado e rodando!"
