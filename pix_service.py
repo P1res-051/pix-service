@@ -316,8 +316,8 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                                 if "000201" in frame_text:
                                     match = re.search(r"(000201[a-zA-Z0-9\s\.\-\*@:]+)", frame_text)
                                     if match:
-                                            candidate = match.group(1).replace(" ", "").replace("\n", "")
-                                            if len(candidate) > 50:
+                                        candidate = match.group(1).replace(" ", "").replace("\n", "")
+                                        if len(candidate) > 50:
                                             pix_code = candidate
                                             logger.info(f"Pix encontrado no texto de um Iframe ({frame.name})!")
                                             break
