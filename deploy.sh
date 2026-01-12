@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # Script de Deploy/Atualização Automática
 echo "🔄 Iniciando atualização do Pix Service..."
@@ -29,12 +30,28 @@ fi
 
 # 4. Limpeza forçada para evitar erros de "ContainerConfig"
 echo "🧹 Limpando containers antigos..."
-docker rm -f pix-service 2>/dev/null
-$COMPOSE down --remove-orphans
+docker rm -f pix-service dozzle uptime-kuma 2>/dev/null || true
+$COMPOSE down --remove-orphans || true
 
 # 5. Reconstrói e reinicia
 echo "🐳 Construindo e iniciando..."
 $COMPOSE up -d --build
+
+echo "⏳ Aguardando API subir (healthcheck)..."
+for i in {1..25}; do
+    if curl -fsS "http://localhost:8000/health" >/dev/null 2>&1; then
+        echo "✅ API respondeu no /health"
+        break
+    fi
+    sleep 2
+done
+
+if ! curl -fsS "http://localhost:8000/health" >/dev/null 2>&1; then
+    echo "❌ API não subiu. Veja status e logs:"
+    $COMPOSE ps || true
+    $COMPOSE logs --tail=200 pix-service || true
+    exit 1
+fi
 
 # 6. Limpa imagens não utilizadas
 docker image prune -f

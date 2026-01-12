@@ -1,8 +1,6 @@
 package pix
 
 import (
-	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -112,7 +110,7 @@ func attemptGeneratePix(link, email string) (string, error) {
 		UserAgent:        playwright.String("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"),
 		Permissions:      []string{"clipboard-read", "clipboard-write"},
 		Viewport:         &playwright.Size{Width: 1920, Height: 1080},
-		IgnoreHTTPSErrors: playwright.Bool(true),
+		IgnoreHttpsErrors: playwright.Bool(true),
 		JavaScriptEnabled: playwright.Bool(true),
 		Locale:           playwright.String("pt-BR"),
 	})
