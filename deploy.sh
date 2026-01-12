@@ -30,18 +30,11 @@ fi
 
 # 4. Limpeza forçada para evitar erros de "ContainerConfig" e conflitos de nome
 echo "🧹 Limpando containers antigos..."
-# Tenta parar e remover containers pelo nome, independente de como foram criados
-for container in pix-service dozzle uptime-kuma; do
-    if docker ps -a --format '{{.Names}}' | grep -q "^${container}$"; then
-        echo "   - Removendo $container..."
-        docker stop "$container" >/dev/null 2>&1 || true
-        docker rm -f "$container" >/dev/null 2>&1 || true
-    fi
-done
-
-# Garante que o compose também limpe
+echo "   - Parando e removendo containers forçadamente..."
+docker stop pix-service dozzle uptime-kuma 2>/dev/null || true
+docker rm -f pix-service dozzle uptime-kuma || true
 $COMPOSE down --remove-orphans || true
-sleep 2
+docker network prune -f 2>/dev/null || true
 
 # 5. Reconstrói e reinicia
 echo "🐳 Construindo e iniciando..."
