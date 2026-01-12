@@ -87,6 +87,12 @@ def read_root():
 def health_check():
     return {"status": "ok"}
 
+@app.get("/health/browser")
+async def browser_health_check():
+    from pix_service import BROWSER_INSTANCE
+    status = "connected" if BROWSER_INSTANCE and BROWSER_INSTANCE.is_connected() else "disconnected"
+    return {"browser_status": status}
+
 if __name__ == "__main__":
     # Pega a porta da variável de ambiente (obrigatório para Render/Heroku)
     port = int(os.environ.get("PORT", 8000))
