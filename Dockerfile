@@ -1,36 +1,37 @@
-# Use uma imagem oficial do Python leve
-FROM python:3.11-slim
-
-# Define variáveis de ambiente para evitar arquivos .pyc e buffer de logs
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
-
-# Instala dependências do sistema necessárias para o Playwright
-# O Playwright precisa de algumas libs do sistema para rodar os browsers
-# CURL é necessário para o Healthcheck
-RUN apt-get update && apt-get install -y \
-    wget \
-    curl \
-    gnupg \
-    && rm -rf /var/lib/apt/lists/*
-
-# Cria diretório de trabalho
+# Stage 1: Build Go Binary and Driver
+FROM golang:1.22 AS builder
 WORKDIR /app
 
-# Copia os requisitos
-COPY requirements.txt .
-
-# Instala dependências Python
-RUN pip install --no-cache-dir -r requirements.txt
-
-# Instala os navegadores do Playwright (e suas dependências de sistema)
-RUN playwright install --with-deps chromium
-
-# Copia o código da aplicação
+# Copy source
 COPY . .
 
-# Expõe a porta 8000
+# Initialize Module and Build
+# If go.sum doesn't exist, tidy will create it
+RUN go mod tidy
+RUN CGO_ENABLED=0 GOOS=linux go build -o pix-service main.go
+
+# Install Playwright CLI tool
+RUN go install github.com/playwright-community/playwright-go/cmd/playwright@latest
+
+# Stage 2: Final Image
+FROM ubuntu:jammy
+
+WORKDIR /app
+
+# Install basic tools required for the installer
+RUN apt-get update && apt-get install -y ca-certificates tzdata curl wget gnupg && rm -rf /var/lib/apt/lists/*
+
+# Copy Binary and Playwright CLI from builder
+COPY --from=builder /app/pix-service .
+COPY --from=builder /go/bin/playwright /usr/local/bin/playwright
+
+# Install Browsers and System Dependencies
+# This command installs the driver, the browsers, and the OS dependencies (apt-get)
+RUN playwright install --with-deps chromium
+
+# Expose Port
+ENV PORT=8000
 EXPOSE 8000
 
-# Comando para iniciar a aplicação usando a variável PORT ou padrão 8000
-CMD sh -c "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"
+# Run
+CMD ["./pix-service"]

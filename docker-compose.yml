@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  # 1. Aplicação Principal (Pix Service)
+  # 1. Main Application (Pix Service - Go Version)
   pix-service:
     build: .
     container_name: pix-service
@@ -10,27 +10,22 @@ services:
       - "8000:8000"
     environment:
       - PORT=8000
-      - MAX_WORKERS=4  # Permite processamento paralelo
-      - PYTHONUNBUFFERED=1
     volumes:
-      - ./debug:/app/debug  # Persiste screenshots de erro
+      - ./debug:/app/debug
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
-    # deploy:
-    #   resources:
-    #     limits:
-    #       memory: 1536M  # Comentado para evitar OOM Kills se a VPS tiver memória livre
-    #       cpus: '1.50'
+    # Resources: Go is efficient, but Chromium needs RAM.
+    # No strict limits to avoid crashes, relying on VPS capacity.
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
 
-  # 2. Visualizador de Logs em Tempo Real (Dozzle)
+  # 2. Log Viewer (Dozzle)
   dozzle:
     image: amir20/dozzle:latest
     container_name: dozzle
@@ -42,7 +37,7 @@ services:
     environment:
       - DOZZLE_LEVEL=info
 
-  # 3. Monitoramento de Uptime (Uptime Kuma)
+  # 3. Uptime Monitoring (Uptime Kuma)
   uptime-kuma:
     image: louislam/uptime-kuma:1
     container_name: uptime-kuma
