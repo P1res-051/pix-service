@@ -31,7 +31,12 @@ semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
 async def lifespan(app: FastAPI):
     # Startup
     logger.info("🚀 Iniciando servidor Pix Service...")
-    await setup_browser()
+    try:
+        await setup_browser()
+    except Exception as e:
+        logger.error(f"❌ CRITICAL ERROR: Falha ao iniciar o navegador no startup: {e}")
+        logger.warning("⚠️ O serviço continuará rodando para debug, mas a geração de Pix falhará até que o navegador seja corrigido.")
+    
     yield
     # Shutdown
     logger.info("🛑 Desligando servidor...")

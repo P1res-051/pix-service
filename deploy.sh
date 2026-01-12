@@ -11,7 +11,14 @@ echo "📥 Baixando atualizações do GitHub..."
 git fetch origin
 git reset --hard origin/main
 
-# 3. Verifica qual Docker Compose usar (V2 é preferido)
+# 3. Verifica qual Docker Compose usar (V2 é preferido) e instala se necessário
+if ! docker compose version >/dev/null 2>&1; then
+    echo "⚠️ Docker Compose V2 não encontrado. Tentando instalar plugin..."
+    mkdir -p ~/.docker/cli-plugins/
+    curl -SL https://github.com/docker/compose/releases/download/v2.24.5/docker-compose-linux-x86_64 -o ~/.docker/cli-plugins/docker-compose
+    chmod +x ~/.docker/cli-plugins/docker-compose
+fi
+
 if docker compose version >/dev/null 2>&1; then
     COMPOSE="docker compose"
     echo "✅ Usando Docker Compose V2"
