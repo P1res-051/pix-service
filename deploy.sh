@@ -36,6 +36,10 @@ docker rm -f pix-service dozzle uptime-kuma || true
 $COMPOSE down --remove-orphans || true
 docker network prune -f 2>/dev/null || true
 
+# CORREÇÃO CRÍTICA: Limpeza do Builder Cache corrompido (erro unknown blob)
+echo "🧹 Limpando cache do Docker Builder (evita erro 'unknown blob')..."
+docker builder prune -a -f >/dev/null 2>&1 || true
+
 # 5. Reconstrói e reinicia
 echo "🐳 Construindo e iniciando..."
 $COMPOSE up -d --build

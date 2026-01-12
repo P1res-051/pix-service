@@ -1,33 +1,43 @@
-# Stage 1: Build Go Binary and Driver
+# Stage 1: Build Go Binary
 FROM golang:1.22 AS builder
 WORKDIR /app
 
-# Copy source
-COPY . .
+# Otimização de Cache: Copia arquivos de dependência primeiro
+COPY go.mod go.sum* ./
+RUN go mod download
 
-# Initialize Module and Build
-# If go.sum doesn't exist, tidy will create it
-RUN go mod tidy
+# Copia o código fonte e compila
+COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -o pix-service main.go
 
-# Install Playwright CLI tool
-RUN go install github.com/playwright-community/playwright-go/cmd/playwright@latest
-
-# Stage 2: Final Image
-FROM ubuntu:jammy
+# Stage 2: Final Image (Usando imagem oficial do Playwright para economizar tempo)
+# Essa imagem já vem com os navegadores e dependências instaladas!
+FROM mcr.microsoft.com/playwright:v1.41.0-jammy
 
 WORKDIR /app
 
-# Install basic tools required for the installer
-RUN apt-get update && apt-get install -y ca-certificates tzdata curl wget gnupg && rm -rf /var/lib/apt/lists/*
+# Instala apenas ferramentas básicas de sistema
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    tzdata \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy Binary and Playwright CLI from builder
+# Copia o binário compilado do Stage 1
 COPY --from=builder /app/pix-service .
-COPY --from=builder /go/bin/playwright /usr/local/bin/playwright
 
-# Install Browsers and System Dependencies
-# This command installs the driver, the browsers, and the OS dependencies (apt-get)
-RUN playwright install --with-deps chromium
+# Playwright driver installation (necessário para o binding Go)
+# A imagem já tem os browsers, mas precisamos do driver do Go
+COPY --from=builder /go/pkg/mod/github.com/playwright-community/playwright-go* /go/pkg/mod/github.com/playwright-community/playwright-go*
+# Ou instalamos o driver novamente (rápido)
+RUN apt-get update && apt-get install -y wget && \
+    wget https://github.com/playwright-community/playwright-go/releases/download/v0.4101.1/playwright-driver-linux-amd64.tar.gz && \
+    tar -xvf playwright-driver-linux-amd64.tar.gz -C /usr/local/bin && \
+    rm playwright-driver-linux-amd64.tar.gz
+
+# Define variáveis de ambiente para o Playwright encontrar os browsers da imagem
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=1
 
 # Expose Port
 ENV PORT=8000
