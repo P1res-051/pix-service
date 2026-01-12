@@ -1,25 +1,56 @@
 version: '3.8'
 
 services:
+  # 1. Aplicação Principal (Pix Service)
   pix-service:
     build: .
     container_name: pix-service
+    restart: always
     ports:
       - "8000:8000"
-    restart: always
     environment:
       - PORT=8000
+      - MAX_WORKERS=4  # Permite processamento paralelo
       - PYTHONUNBUFFERED=1
-    # Healthcheck para garantir que o serviço reinicie se travar
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 30s
-    # Configurações de logging para não estourar o disco da VPS
+    volumes:
+      - ./debug:/app/debug  # Persiste screenshots de erro
     logging:
       driver: "json-file"
       options:
         max-size: "10m"
         max-file: "3"
+    deploy:
+      resources:
+        limits:
+          memory: 1536M  # Limite de 1.5GB para não travar a VPS
+          cpus: '1.50'
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 2. Visualizador de Logs em Tempo Real (Dozzle)
+  dozzle:
+    image: amir20/dozzle:latest
+    container_name: dozzle
+    restart: always
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    ports:
+      - "8888:8080"
+    environment:
+      - DOZZLE_LEVEL=info
+
+  # 3. Monitoramento de Uptime (Uptime Kuma)
+  uptime-kuma:
+    image: louislam/uptime-kuma:1
+    container_name: uptime-kuma
+    restart: always
+    volumes:
+      - uptime-kuma-data:/app/data
+    ports:
+      - "3001:3001"
+
+volumes:
+  uptime-kuma-data:

@@ -1,5 +1,6 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pix_service import gerar_pix_playwright, setup_browser, shutdown_browser
@@ -8,32 +9,38 @@ import uvicorn
 import logging
 import os
 import asyncio
+import uuid
+import time
 
-# Configuração de Logs
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+# --- Configuração de Logs Estruturados ---
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s | %(levelname)s | %(message)s',
+    datefmt='%Y-%m-%d %H:%M:%S'
+)
+logger = logging.getLogger("PixAPI")
 
 # Garante que a pasta de debug existe
 os.makedirs("debug", exist_ok=True)
 
-# Limite de concorrência (ajustar conforme RAM da VPS)
-# 5 workers simultâneos = ~500MB RAM (seguro para VPS 2GB+)
+# Limite de concorrência (Ajustado para VPS)
 CONCURRENCY_LIMIT = 5
 semaphore = asyncio.Semaphore(CONCURRENCY_LIMIT)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    logger.info("Iniciando servidor e navegador...")
+    logger.info("🚀 Iniciando servidor Pix Service...")
     await setup_browser()
     yield
     # Shutdown
-    logger.info("Desligando servidor e navegador...")
+    logger.info("🛑 Desligando servidor...")
     await shutdown_browser()
 
 app = FastAPI(
-    title="Gerador Pix Service", 
-    description="API para gerar Pix Copia e Cola via automação",
+    title="Pix Service Automation", 
+    description="API robusta para geração de Pix Copia e Cola com Playwright.",
+    version="2.1.0",
     lifespan=lifespan
 )
 
@@ -48,6 +55,7 @@ app.add_middleware(
 # Monta a rota para acessar arquivos de debug (screenshots)
 app.mount("/debug", StaticFiles(directory="debug"), name="debug")
 
+# --- Modelos de Dados ---
 class PixRequest(BaseModel):
     link: str
     email: str = "teste@gmail.com"
@@ -56,36 +64,84 @@ class PixResponse(BaseModel):
     success: bool
     pix: str | None = None
     error: str | None = None
+    request_id: str
+    execution_time: float
+
+# --- Middleware para Logging de Requisições ---
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    request_id = str(uuid.uuid4())
+    start_time = time.time()
+    
+    logger.info(f"[{request_id}] Recebendo requisição: {request.method} {request.url}")
+    
+    response = await call_next(request)
+    
+    process_time = time.time() - start_time
+    logger.info(f"[{request_id}] Concluído em {process_time:.2f}s | Status: {response.status_code}")
+    
+    response.headers["X-Request-ID"] = request_id
+    return response
+
+# --- Rotas ---
 
 @app.post("/gerar-pix", response_model=PixResponse)
 async def gerar_pix_endpoint(request: PixRequest):
-    logger.info(f"Recebendo pedido: {request.link} | {request.email}")
+    req_id = str(uuid.uuid4()) # ID interno para rastreio
+    start_time = time.time()
     
-    # Usa o semáforo para limitar execuções simultâneas e evitar crash da VPS
+    logger.info(f"[{req_id}] Iniciando processamento para: {request.link}")
+    
+    # Check de concorrência
     if semaphore.locked():
-        logger.warning("Servidor ocupado. Aguardando vaga na fila...")
+        logger.warning(f"[{req_id}] Fila cheia! Aguardando slot de processamento...")
         
     async with semaphore:
         try:
             # Chama o serviço Playwright
             pix_code = await gerar_pix_playwright(request.link, request.email)
             
+            elapsed = time.time() - start_time
+            
             if pix_code:
-                return PixResponse(success=True, pix=pix_code)
+                logger.info(f"[{req_id}] ✅ SUCESSO! Pix gerado em {elapsed:.2f}s")
+                return PixResponse(
+                    success=True, 
+                    pix=pix_code, 
+                    request_id=req_id,
+                    execution_time=elapsed
+                )
             else:
-                return PixResponse(success=False, error="PIX_NOT_FOUND")
+                logger.error(f"[{req_id}] ❌ ERRO: Pix não encontrado após tentativas.")
+                return PixResponse(
+                    success=False, 
+                    error="PIX_NOT_FOUND", 
+                    request_id=req_id,
+                    execution_time=elapsed
+                )
                 
         except Exception as e:
-            logger.error(f"Erro interno: {e}")
-            return PixResponse(success=False, error=str(e))
+            elapsed = time.time() - start_time
+            logger.exception(f"[{req_id}] 💥 ERRO CRÍTICO: {str(e)}")
+            return PixResponse(
+                success=False, 
+                error=f"INTERNAL_ERROR: {str(e)}", 
+                request_id=req_id,
+                execution_time=elapsed
+            )
 
 @app.get("/")
 def read_root():
-    return {"message": "Serviço Gerador Pix está rodando! Use POST /gerar-pix para gerar códigos."}
+    return {
+        "message": "Pix Service Online",
+        "docs": "/docs",
+        "logs": "Acesse a porta :8888 para ver logs em tempo real",
+        "monitor": "Acesse a porta :3001 para monitoramento"
+    }
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    return {"status": "ok", "concurrency_slots_free": semaphore._value}
 
 @app.get("/health/browser")
 async def browser_health_check():
@@ -94,6 +150,6 @@ async def browser_health_check():
     return {"browser_status": status}
 
 if __name__ == "__main__":
-    # Pega a porta da variável de ambiente (obrigatório para Render/Heroku)
     port = int(os.environ.get("PORT", 8000))
+    # Workers configurados via uvicorn.run para dev, mas no Docker usa CMD
     uvicorn.run(app, host="0.0.0.0", port=port)
