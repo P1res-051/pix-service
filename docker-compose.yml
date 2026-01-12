@@ -10,6 +10,13 @@ services:
     environment:
       - PORT=8000
       - PYTHONUNBUFFERED=1
+    # Healthcheck para garantir que o serviço reinicie se travar
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
     # Configurações de logging para não estourar o disco da VPS
     logging:
       driver: "json-file"
