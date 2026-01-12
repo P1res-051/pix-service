@@ -28,7 +28,7 @@ else
     echo "⚠️ Usando Docker Compose Legacy (V1)"
 fi
 
-# 4. Limpeza forçada para evitar erros de "ContainerConfig"
+# 4. Limpeza forçada para evitar erros de "ContainerConfig" e conflitos de nome
 echo "🧹 Limpando containers antigos..."
 docker rm -f pix-service dozzle uptime-kuma 2>/dev/null || true
 $COMPOSE down --remove-orphans || true
