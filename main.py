@@ -20,8 +20,11 @@ logging.basicConfig(
 )
 logger = logging.getLogger("PixAPI")
 
-# Garante que a pasta de debug existe
-os.makedirs("debug", exist_ok=True)
+# Garante que a pasta de debug existe com tratamento de erro
+try:
+    os.makedirs("debug", exist_ok=True)
+except Exception as e:
+    logger.error(f"⚠️ Falha ao criar pasta de debug: {e}")
 
 # Limite de concorrência (Ajustado para VPS)
 CONCURRENCY_LIMIT = 5

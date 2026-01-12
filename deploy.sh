@@ -39,5 +39,14 @@ $COMPOSE up -d --build
 # 6. Limpa imagens não utilizadas
 docker image prune -f
 
+# 7. Configura Firewall (UFW) se disponível para liberar portas
+if command -v ufw >/dev/null 2>&1; then
+    echo "🛡️ Configurando Firewall (liberando portas 8000, 8888, 3001)..."
+    ufw allow 8000/tcp
+    ufw allow 8888/tcp
+    ufw allow 3001/tcp
+    echo "✅ Portas liberadas."
+fi
+
 echo "✅ Serviço atualizado e rodando!"
 echo "📍 Teste em: http://$(curl -4 -s ifconfig.me):8000/gerar-pix"
