@@ -263,6 +263,9 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                 # Dump do HTML para debug no log
                 try:
                     content = await page.content()
+                    with open("debug/debug_dump.html", "w", encoding="utf-8") as f:
+                        f.write(content)
+                        
                     logger.info("--- DUMP DO CONTEÚDO DA PÁGINA (BODY) ---")
                     body_text = await page.inner_text("body")
                     logger.info(body_text[:5000]) # Loga os primeiros 5000 chars do texto visível
@@ -281,14 +284,16 @@ async def gerar_pix_playwright(url_link: str, email_cliente: str = "teste@gmail.
                 
                 # Tira screenshot para debug
                 try:
-                    await page.screenshot(path="debug_error.png")
+                    await page.screenshot(path="debug/debug_error.png")
                 except: pass
                 
                 return None
 
         except Exception as e:
             logger.error(f"Erro no Playwright: {e}")
-            await page.screenshot(path="debug_fatal.png")
+            try:
+                await page.screenshot(path="debug/debug_fatal.png")
+            except: pass
             return None
         finally:
             await browser.close()

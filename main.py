@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from pix_service import gerar_pix_playwright
 import uvicorn
@@ -10,6 +11,9 @@ import os
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+# Garante que a pasta de debug existe
+os.makedirs("debug", exist_ok=True)
+
 app = FastAPI(title="Gerador Pix Service", description="API para gerar Pix Copia e Cola via automação")
 
 app.add_middleware(
@@ -19,6 +23,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Monta a rota para acessar arquivos de debug (screenshots)
+app.mount("/debug", StaticFiles(directory="debug"), name="debug")
 
 class PixRequest(BaseModel):
     link: str
